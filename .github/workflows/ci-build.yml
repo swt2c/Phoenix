@@ -41,7 +41,7 @@ jobs:
   # Build a wxPython source archive, and save it as an artifact for use in the
   # job that builds the wheels.
   build-source-dist:
-    runs-on: ubuntu-22.04
+    runs-on: macos-14
 
     outputs:
       VERSION: ${{ steps.generate.outputs.version }}
@@ -59,14 +59,30 @@ jobs:
           python-version: '3.13'
           cache: 'pip'
 
+      - name: BLAH TEST
+        run: |
+          echo "BLAH VAR"
+          python3.13 -c 'import sysconfig; print(sysconfig.get_config_var("CFLAGS"))'
+          echo "BLAH LDSHARDED"
+          python3.13 -c 'import sysconfig; print(sysconfig.get_config_var("LDSHARED"))'
+          echo "BLAH CFLAGS"
+          python3.13-config --cflags
+          echo "BLAH LIBS"
+          python3.13-config --libs
+          echo "BLAH LDFLAGS"
+          python3.13-config --ldflags
+          cat /Users/runner/hostedtoolcache/Python/3.13.1/arm64/bin/python3.13-config
+
       - name: Install dependencies
         run: |
-          sudo apt-get install -y gettext
+          #sudo apt-get install -y gettext
           python -m pip install --upgrade -r requirements.txt
 
       - name: Generate wrapper code
         id: generate
         run: |
+          python build.py build_wx build_py
+          blah
           python build.py setrev dox etg sip --nodoc
           VERSION=$(python build.py --quiet version)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"

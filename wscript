@@ -332,6 +332,7 @@ def configure(conf):
         if cfg.CXX:
             conf.env.CXX = cfg.CXX.split()
         if cfg.LDSHARED:
+            print("BLAH LDSHARDED!!!!!")
             conf.env.LINK_CC = cfg.LDSHARED.split()
             conf.env.LINK_CXX = cfg.LDSHARED.split()
 
@@ -342,9 +343,9 @@ def configure(conf):
             if conf.options.mac_arch:
                 conf.env.ARCH_WXPY = conf.options.mac_arch.split(',')
 
-    # import pprint
-    # pprint.pprint( [(k, conf.env[k]) for k in conf.env.keys()] )
-    # sys.exit(0)
+    import pprint
+    pprint.pprint( [(k, conf.env[k]) for k in conf.env.keys()] )
+    sys.exit(0)
 
 
 #
