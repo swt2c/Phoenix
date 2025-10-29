@@ -237,6 +237,13 @@ jobs:
         with:
           arch: '${{ matrix.architecture }}'
 
+      - name: Install custom WAF (temp)
+        run: |
+          git clone --branch freethread_support https://gitlab.com/swt2c/waf
+          cd waf
+          ./waf-light configure build
+          echo "WAF=$(pwd)/waf" >> "$GITHUB_ENV"
+
       - name: Build the wxPython wheel
         env:
           WXPYTHON_BUILD_ARGS: ${{ steps.init.outputs.build_opts }}
