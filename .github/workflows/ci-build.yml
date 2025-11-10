@@ -33,7 +33,7 @@ defaults:
 
 env:
   PYTHONUNBUFFERED: 1
-  WXPYTHON_BUILD_ARGS: ${{ startsWith(github.ref, 'refs/tags/') && '--release' || '' }}
+  WXPYTHON_BUILD_ARGS: ${{ startsWith(github.ref, 'refs/tags/') && '--release' || '--extra_waf "-v"' }}
 
 #---------------------------------------------------------------------------
 
@@ -108,7 +108,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-22.04, windows-2022, macos-13, macos-14, windows-11-arm ]
-        python-version: [ '3.9', '3.10', '3.11', '3.12', '3.13', '3.14' ]
+        python-version: [ '3.13t', '3.14t', '3.13' ]
         architecture: [ 'x86', 'x64', 'arm64' ]
         # Exclude x86 configs on non-Windows OSs
         exclude:
@@ -165,14 +165,14 @@ jobs:
               echo "CIBW_BUILD=cp$(echo ${{ matrix.python-version }} | sed 's/\.//')-macosx_$(uname -m)" >> "$GITHUB_ENV"
               echo "CIBW_BUILD_VERBOSITY=1" >> "$GITHUB_ENV"
               echo "CIBW_BUILD_FRONTEND=pip" >> "$GITHUB_ENV"
-              echo "CIBW_ENABLE=cpython-prerelease" >> "$GITHUB_ENV"
+              echo "CIBW_ENABLE=cpython-prerelease cpython-freethreading" >> "$GITHUB_ENV"
               echo "MACOSX_DEPLOYMENT_TARGET=10.10" >> "$GITHUB_ENV"
           elif [ ${{ matrix.os }} == macos-14 ]; then
               short_name=macos
               echo "CIBW_BUILD=cp$(echo ${{ matrix.python-version }} | sed 's/\.//')-macosx_$(uname -m)" >> "$GITHUB_ENV"
               echo "CIBW_BUILD_VERBOSITY=1" >> "$GITHUB_ENV"
               echo "CIBW_BUILD_FRONTEND=pip" >> "$GITHUB_ENV"
-              echo "CIBW_ENABLE=cpython-prerelease" >> "$GITHUB_ENV"
+              echo "CIBW_ENABLE=cpython-prerelease cpython-freethreading" >> "$GITHUB_ENV"
               echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> "$GITHUB_ENV"
           elif [ ${{ matrix.os }} == windows-2022 ]; then
               if [ ${{ matrix.architecture }} == x64 ]; then
@@ -236,6 +236,13 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: '${{ matrix.architecture }}'
+
+      - name: Install custom WAF (temp)
+        run: |
+          git clone --branch fix_freethread_detection https://gitlab.com/swt2c/waf
+          cd waf
+          ./waf-light configure build
+          echo "WAF=$(pwd)/waf" >> "$GITHUB_ENV"
 
       - name: Build the wxPython wheel
         env:
