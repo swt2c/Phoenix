@@ -239,7 +239,7 @@ jobs:
 
       - name: Install custom WAF (temp)
         run: |
-          git clone --branch freethread_support https://gitlab.com/swt2c/waf
+          git clone --branch fix_freethread_detection https://gitlab.com/swt2c/waf
           cd waf
           ./waf-light configure build
           echo "WAF=$(pwd)/waf" >> "$GITHUB_ENV"
