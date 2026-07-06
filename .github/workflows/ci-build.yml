@@ -41,7 +41,7 @@ jobs:
   # Build a wxPython source archive, and save it as an artifact for use in the
   # job that builds the wheels.
   build-source-dist:
-    runs-on: ubuntu-24.04
+    runs-on: windows-2025
 
     outputs:
       VERSION: ${{ steps.generate.outputs.version }}
@@ -61,12 +61,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get install -y gettext
           python -m pip install --upgrade -r requirements.txt
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: step-security/msvc-dev-cmd@v1
+        with:
+          arch: '${{ matrix.architecture }}'
+
+      - name: Build wxWidgets
+        run: |
+          python build.py build_wx
 
       - name: Generate wrapper code
         id: generate
         run: |
+          blah
           python build.py setrev dox etg sip --nodoc
           VERSION=$(python build.py --quiet version)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
