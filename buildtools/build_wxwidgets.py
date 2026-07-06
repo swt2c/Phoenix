@@ -16,7 +16,7 @@ import types
 import subprocess
 
 from buildtools import builder
-from buildtools.config import getVisCVersion
+from buildtools.config import getVisCVersion, getVSVersion
 
 # builder object
 wxBuilder = None
@@ -175,7 +175,7 @@ def main(wxDir, args):
         contribDir = os.path.join(wxRootDir, "contrib", "build")
 
     if sys.platform.startswith("win"):
-        toolkit = "msvc"
+        toolkit = "msvc_msbuild"
     else:
         toolkit = "autoconf"
 
@@ -385,7 +385,7 @@ def main(wxDir, args):
             print("Exiting after configure")
             return
 
-    elif toolkit in ["msvc", "msvcProject"]:
+    elif toolkit in ["msvc", "msvcProject", "msvc_msbuild"]:
         flags = {}
         buildDir = os.path.abspath(os.path.join(wxRootDir, "build", "msw"))
 
@@ -464,6 +464,28 @@ def main(wxDir, args):
 
 
             wxBuilder = builder.MSVCBuilder(commandName=nmakeCommand)
+
+        if toolkit == "msvc_msbuild":
+            print("setting build options...")
+            vs_ver = getVSVersion()
+            sln_file = f"wx_vc{vs_ver}.sln" if vs_ver < 18 else f"wx_vc{vs_ver}.slnx"
+
+            args.append("/m")
+            if not options.debug:
+                args.append('/p:Configuration="DLL Release"')
+            else:
+                args.append('/p:Configuration="DLL Debug"')
+
+            cpu_to_vs_platform = {"ARM64": "ARM64", "X64": "x64"}
+            try:
+                vs_platform = cpu_to_vs_platform[os.environ["CPU"]]
+            except KeyError:
+                vs_platform = "Win32"
+            args.append(f"/p:Platform={vs_platform}")
+
+            args.append(sln_file)
+
+            wxBuilder = builder.MSVCMSBuildBuilder()
 
         if toolkit == "msvcProject":
             args = []

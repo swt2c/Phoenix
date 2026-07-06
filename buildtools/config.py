@@ -971,6 +971,12 @@ def getVisCVersion():
     return ver
 
 
+def getVSVersion():
+    if MSVCinfo is None:
+        raise RuntimeError('getMSVCInfo has not been called yet.')
+    return int(MSVCinfo["vs_ver"])
+
+
 def getExpectedVisCVersion():
     """
     Returns the Visual C version that Python is expecting, based on the usual

@@ -245,7 +245,19 @@ class MSVCProjectBuilder(Builder):
 
         return False
 
-builders = [GNUMakeBuilder, XcodeBuilder, AutoconfBuilder, MSVCBuilder, MSVCProjectBuilder]
+class MSVCMSBuildBuilder(Builder):
+    def __init__(self, commandName="msbuild.exe"):
+        Builder.__init__(self, commandName=commandName, formatName="msvc")
+
+    def isAvailable(self):
+        PATH = os.environ['PATH'].split(os.path.pathsep)
+        for p in PATH:
+            if os.path.exists(os.path.join(p, self.name)):
+                return True
+        return False
+
+
+builders = [GNUMakeBuilder, XcodeBuilder, AutoconfBuilder, MSVCBuilder, MSVCProjectBuilder, MSVCMSBuildBuilder]
 
 def getAvailableBuilders():
     availableBuilders = {}
