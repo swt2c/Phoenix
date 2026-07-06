@@ -71,6 +71,7 @@ jobs:
 
       - name: Build wxWidgets
         run: |
+          python -c "import os, setuptools.msvc as m; ei = m.EnvironmentInfo('amd64', vc_min_ver=14.0); raw = ei.MSBuild; print('setuptools computed MSBuild candidate(s):', raw); print('do those paths actually exist on disk?', [os.path.isdir(p) for p in raw]); env = ei.return_env(); paths = env['path'].split(os.pathsep); print(); print('resulting PATH after setuptools.msvc override, in order:'); [print(' ', p) for p in paths]; print(); found = next((p for p in paths if os.path.isfile(os.path.join(p, 'MSBuild.exe'))), None); print('FIRST msbuild.exe that would actually be resolved:', os.path.join(found, 'MSBuild.exe') if found else 'NONE FOUND')"
           python build.py build_wx
 
       - name: Generate wrapper code
