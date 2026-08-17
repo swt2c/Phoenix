@@ -1,0 +1,167 @@
+#-----------------------------------------------------------------------------
+# Throwaway workflow: build wxPython from source with the proposed
+# wxWidgets#26491 fix patched into the vendored wxWidgets, on windows-11-arm
+# only (all supported Python versions there), with the test-side workaround
+# reverted so unittests/test_webview.py exercises the raw async-teardown
+# race. If the wxWidgets fix works, these should pass; if not, they should
+# crash the same way the original CI run did. Not meant to be merged.
+#-----------------------------------------------------------------------------
+
+name: webview-fix-validation
+
+on:
+  workflow_dispatch:
+
+env:
+  PYTHONUNBUFFERED: 1
+
+jobs:
+  build-source-dist:
+    runs-on: ubuntu-24.04
+
+    outputs:
+      VERSION: ${{ steps.generate.outputs.version }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Apply wxWidgets#26491 fix to vendored wxWidgets
+        run: |
+          git -C ext/wxWidgets apply --verbose "$(pwd)/.github/patches/webview_edge_26491.patch"
+          # cmd_sdist archives each submodule via `git archive HEAD`, so the
+          # patch must be committed or it silently won't make it into the sdist.
+          git -C ext/wxWidgets -c user.name=ci -c user.email=ci@example.com \
+            commit -am "temp: apply wxWidgets#26491 fix for CI validation"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y gettext
+          python -m pip install --upgrade -r requirements.txt
+
+      - name: Generate wrapper code
+        id: generate
+        run: |
+          python build.py setrev dox etg sip --nodoc
+          VERSION=$(python build.py --quiet version)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create source distribution (sdist)
+        run: |
+          python build.py sdist
+
+      - name: Save sdist as job artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wxPython-source
+          path: dist/wxpython-${{ steps.generate.outputs.version }}.tar.gz
+
+  build-wheels:
+    needs: build-source-dist
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ '3.11', '3.12', '3.13', '3.14' ]
+
+    env:
+      VERSION: ${{ needs.build-source-dist.outputs.VERSION }}
+      WXPYTHON_BUILD_ARGS: --cairo
+
+    runs-on: windows-11-arm
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revert the test-side workaround for #26491
+        run: |
+          git checkout 1b8b4a20ce3670619cff637057d9fefd47004c43~1 -- unittests/test_webview.py
+          git diff --stat HEAD -- unittests/test_webview.py
+
+      - name: Download sdist artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: wxPython-source
+          path: dist
+
+      - name: Set up Python ${{ matrix.python-version }}-arm64
+        uses: actions/setup-python@v6
+        with:
+          python-version: '${{ matrix.python-version }}'
+          architecture: 'arm64'
+          cache: 'pip'
+          allow-prereleases: true
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade -r requirements.txt
+
+      - name: Setup MSVC
+        uses: step-security/msvc-dev-cmd@v1
+        with:
+          arch: 'arm64'
+
+      - name: Build the wxPython wheel
+        run: |
+          cd dist
+          pip wheel -v wxpython-${{ env.VERSION }}.tar.gz
+
+      - name: Install wheel and smoke test
+        run: |
+          cd dist
+          pip install wxpython-*.whl
+          python -c "import wx; import wx.html2; print(wx.version())"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pytest pytest-timeout
+
+      - name: Install ProcDump
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://download.sysinternals.com/files/Procdump.zip -OutFile procdump.zip
+          Expand-Archive -Path procdump.zip -DestinationPath procdump -Force
+
+      - name: Run webview tests under ProcDump
+        shell: pwsh
+        env:
+          PYTHONFAULTHANDLER: '1'
+        run: |
+          $py = (python -c "import sys; print(sys.executable)").Trim()
+          $dumpDir = Join-Path (Get-Location) 'dumps'
+          New-Item -ItemType Directory -Force -Path $dumpDir | Out-Null
+          $procdump = Join-Path (Get-Location) 'procdump\procdump64a.exe'
+
+          & $procdump -accepteula -ma -x $dumpDir $py -m pytest -o addopts= -v -s --timeout=120 -p no:cacheprovider unittests/test_webview.py 2>&1 |
+            Tee-Object -FilePath webview-output.log
+          Write-Host "exit code: $LASTEXITCODE"
+          exit $LASTEXITCODE
+
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: webview-fix-validation-py${{ matrix.python-version }}-arm64
+          path: |
+            webview-output.log
+            dumps/**
+          if-no-files-found: warn
